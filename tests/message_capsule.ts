@@ -11,7 +11,7 @@ const IDL = require("../target/idl/message_capsule.json")
 process.env.RUST_LOG = 'ERROR';
 
 const MESSAGE_CAPSULE_ID = new PublicKey(
-	"84EH2DYEyYxWg7DHhL2mEoNP1r8PaDhRsRjLrsxbFYRy",
+  "84EH2DYEyYxWg7DHhL2mEoNP1r8PaDhRsRjLrsxbFYRy",
 );
 
 describe("message_capsule", () => {
@@ -19,7 +19,7 @@ describe("message_capsule", () => {
   let provider: BankrunProvider;
   let program: Program<MessageCapsule>;
   let capsuleKeyPair: Keypair;;
-  
+
   let client;
   let payer;
   let blockhash;
@@ -28,16 +28,16 @@ describe("message_capsule", () => {
     context = await startAnchor("/home/nachogutman/cf/message_capsule/", [], []);
     provider = new BankrunProvider(context);
     program = new Program<MessageCapsule>(IDL, MESSAGE_CAPSULE_ID, provider);
-    
+
     capsuleKeyPair = Keypair.generate();
 
     client = context.banksClient;
-	  payer = context.payer;
-	  blockhash = context.lastBlockhash;
+    payer = context.payer;
+    blockhash = context.lastBlockhash;
   })
 
 
-  it('create message capsule', async () => { 
+  it('create message capsule', async () => {
     const message = "Moriste en madrid";
     const tx = await program.methods
       .createCapsule(message)
@@ -52,32 +52,34 @@ describe("message_capsule", () => {
     console.log("Your transaction signature: ", tx);
   })
 
-  it('should not read message capsule', async () => { 
+  it('should not read message capsule', async () => {
+    const tx = await program.methods
+      .readMessage()
+      .accounts({
+        capsule: capsuleKeyPair.publicKey,
+      })
+      .transaction()
+    tx.recentBlockhash = (await client.getLatestBlockhash())[0];
+    tx.sign(payer);
     try {
-      await program.methods
-        .readMessage()
-        .accounts({
-          capsule: capsuleKeyPair.publicKey,
-        })
-        .rpc();
-
+      await client.processTransaction(tx);
       assert.fail();
-    } catch (error){
-      console.log("ERRORRRR"+ error);
+    } catch (error) {
+      {
+        console.log(error)
+      }
     }
-
-
   })
 
   it('should read message capsule after time passed', async () => {
     const currentClock = await client.getClock();
-    context.setClock( 
+    context.setClock(
       new Clock(
         currentClock.slot,
         currentClock.epochStartTimestamp,
         currentClock.epoch,
         currentClock.leaderScheduleEpoch,
-        BigInt(60),
+        currentClock.unixTimestamp + BigInt(60),
       )
     );
 
@@ -86,9 +88,17 @@ describe("message_capsule", () => {
       .accounts({
         capsule: capsuleKeyPair.publicKey,
       })
-      .rpc();
+      .transaction()
 
-    console.log("Your transaction signature: ", tx);
+    tx.recentBlockhash = (await client.getLatestBlockhash())[0];
+    tx.sign(payer);
+    try {
+      await client.processTransaction(tx);
+      assert.ok(tx);
+    } catch (error) {
+      console.log(error)
+      assert.equal(0, 1);
+    }
   })
 
 });
